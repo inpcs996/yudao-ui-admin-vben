@@ -1,0 +1,58 @@
+name: Sync Yudao UI Admin Vben
+
+on:
+  schedule:
+    # 北京时间每 4 小时同步一次（09:00, 13:00, 17:00, 21:00）
+    - cron: '0 1 * * *'    # UTC 1:00 = 北京时间 09:00
+    - cron: '0 5 * * *'    # UTC 5:00 = 北京时间 13:00
+    - cron: '0 9 * * *'    # UTC 9:00 = 北京时间 17:00
+    - cron: '0 13 * * *'   # UTC 13:00 = 北京时间 21:00
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/yudaocode/yudao-ui-admin-vben.git
+
+      - name: Sync master branch
+        run: |
+          echo "📦 Syncing master branch..."
+          git fetch upstream master
+          git checkout master 2>/dev/null || git checkout -b master upstream/master
+          if git merge-base --is-ancestor upstream/master master; then
+            echo "✅ master is already up to date"
+          else
+            git merge upstream/master -m "Sync: update master from upstream" || true
+          fi
+          git push origin master --force-with-lease 2>&1 | grep -E "(master|error|Error)" || echo "✅ master pushed"
+
+      - name: Sync tags
+        run: |
+          echo "🏷️ Syncing tags..."
+          git fetch upstream --tags
+          git push origin --tags --force-with-lease 2>&1 | tail -3 || echo "✅ Tags synced"
+
+      - name: Display sync summary
+        run: |
+          echo "📊 Sync Summary (Vue3 + Vben5 + Ant Design)"
+          echo "=========================================="
+          git log --oneline -5
+          echo ""
+          echo "🔗 Upstream: https://github.com/yudaocode/yudao-ui-admin-vben"
+          echo "📍 Fork: https://github.com/${{ github.repository }}"
